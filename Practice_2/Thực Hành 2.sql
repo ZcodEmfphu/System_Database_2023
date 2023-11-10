@@ -215,7 +215,7 @@ Insert into PHIEUTRANNO(SoPTN, NgayTra, SoTienTra, SoHD) values('PTN04','2010-06
 Insert into PHIEUTRANNO(SoPTN, NgayTra, SoTienTra, SoHD) values('PTN05','2010-07-01',1080000 ,'HD03')
 
 --Update database
-select * from PHIEUTRANNO
+select * from NHACC
 
 update NGK set MaLoaiNGK ='NK1' where TenNGK ='Coca Cola';
 update NGK set MaLoaiNGK ='NK1' where TenNGK ='Pepsi';
@@ -261,17 +261,15 @@ where NHACC.MaNCC = LoaiNGK.MaNCC
 group by TenNCC;
 
 --6) Cho biết tên nhà cung cấp không có khả năng cung cấp NGK có tên ‘Pepsi’.
-go
-create view NCC_Pepsi
-as
-select TenNCC,  TenNGK
-from  NHACC, NGK , LOAINGK 
-where NGK.MaLoaiNGK = LoaiNGK. MaLoaiNGK 
-  and LoaiNGK.MaNCC = NHACC.MaNCC
-  and TenNGK = 'Pepsi';
 
-select * from NHACC
-where TenNCC not in (select distinct TenNCC from NCC_Pepsi)
+SELECT DISTINCT NH.TenNCC
+FROM NHACC NH
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM LOAINGK LG
+    JOIN NGK N ON LG.MaLoaiNGK = N.MaLoaiNGK
+    WHERE LG.MaNCC = NH.MaNCC AND N.TenNGK = 'Pepsi'
+);
 
 --7) Hiển thị thông tin của NGK chưa bán được.
 
@@ -309,16 +307,17 @@ and CT_DDH.SoDDH = DDH.SoDDH
 and not  (month(NgayDH)=1 and year(NgayDH)=2010);
 
 --12) Hiển thị tên các NGK không bán được trong tháng 6/2010.
-go
-create view NGK_sale
-as
-select TenNGK, NgaylapHD
-from NGK,HOADON, CT_HOADON
-where NGK.MaNGK = CT_HOADON.MaNGK and  HOADON.SoHD = CT_HOADON.SoHD
-and MONTH(NgaylapHD)=6 and YEAR(NgaylapHD)=2010;
 
-select * from NGK
-where TenNGK not in (select distinct TenNGK from NGK_sale)
+SELECT NGK.TenNGK
+FROM NGK
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM CT_HOADON
+    JOIN HOADON ON CT_HOADON.SoHD = HOADON.SoHD
+    WHERE NGK.MaNGK = CT_HOADON.MaNGK
+        AND YEAR(HOADON.NgaylapHD) = 2010
+        AND MONTH(HOADON.NgaylapHD) = 6
+);
 
 --13) Cho biết cửa hàng bán bao nhiêu thứ NGK.
 
@@ -328,17 +327,13 @@ where KH.MaKH = HOADON.MaKH and HOADON.SoHD = CT_HOADON.SoHD
 group by TenKH;
 
 --14) Cho biết cửa hàng bán bao nhiêu loại NGK.
-create view LoaiNGK_KH
-as
-select distinct TenKH ,MaLoaiNGK
-from NGK, KH, HOADON, CT_HOADON
-where KH.MaKH = HOADON.MaKH 
-  and HOADON.SoHD = CT_HOADON.SoHD
-  and CT_HOADON.MaNGK = NGK.MaNGK
 
-select TenKH , count(MaloaiNGk) as " Số loại NGK"
-from LoaiNGK_KH
-group by TenKH;
+SELECT KH.TenKH AS "Tên Cửa Hàng", COUNT(DISTINCT NGK.MaLoaiNGK) AS "Số loại nước giải khát"
+FROM KH
+JOIN HOADON ON KH.MaKH = HOADON.MaKH
+JOIN CT_HOADON ON HOADON.SoHD = CT_HOADON.SoHD
+Join NGK on CT_HOADON.MaNGK = NGK.MaNGK
+GROUP BY KH.TenKH;
 
 --15) Hiển thị thông tin của khách hàng có giao dịch với cửa hàng nhiều nhất (căn cứ vào số lần mua hàng).
 
@@ -402,16 +397,132 @@ group by CT_HOADON.SoHD,NgaylapHD,HOADON.MaKH,TenKH
 order by NgaylapHD asc, [Tổng tiền] desc;
 
 --24) Cho biết các hóa đơn có tổng trị giá lớn hơn tổng trị giá trung bình của các hóa đơn trong ngày 18/06/2010.
+
+SELECT HOADON.SoHD, NgaylapHD, SUM(DGBan * SLKHMua) AS "Tổng trị giá"
+FROM HOADON
+JOIN CT_HOADON ON HOADON.SoHD = CT_HOADON.SoHD
+GROUP BY HOADON.SoHD, NgaylapHD
+HAVING SUM(DGBan * SLKHMua) > (SELECT AVG(DGBan * SLKHMua) 
+                                FROM HOADON 
+                                JOIN CT_HOADON ON HOADON.SoHD = CT_HOADON.SoHD 
+                                WHERE NgaylapHD = '2010-06-16'
+                                GROUP BY HOADON.SoHD);
+								
 --25) Cho biết số lượng từng NGK tiêu thụ theo từng tháng của năm 2010.
+
+SELECT  NGK.TenNGK, MONTH(HOADON.NgaylapHD) AS "Tháng", SUM(CT_HOADON.SLKHMua) AS "Số lượng tiêu thụ"
+FROM HOADON
+JOIN CT_HOADON ON HOADON.SoHD = CT_HOADON.SoHD
+JOIN NGK ON CT_HOADON.MaNGK = NGK.MaNGK
+WHERE YEAR(HOADON.NgaylapHD) = 2010
+GROUP BY NGK.TenNGK,  MONTH(HOADON.NgaylapHD)
+
 --26) Đưa ra danh sách NGK chưa được bán trong tháng 9 năm 2010.
+
+SELECT *
+FROM NGK
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM CT_HOADON
+    JOIN HOADON ON CT_HOADON.SoHD = HOADON.SoHD
+    WHERE NGK.MaNGK = CT_HOADON.MaNGK
+        AND YEAR(HOADON.NgaylapHD) = 2010
+        AND MONTH(HOADON.NgaylapHD) = 9
+);
+
 --27) Đưa ra danh sách khách hàng có địa chỉ ở TP.HCM và từng mua NGK trong tháng 9 năm 2010.
+
+SELECT KH.MaKH, KH.TenKH, KH.DCKH
+FROM KH
+JOIN HOADON ON KH.MaKH = HOADON.MaKH
+JOIN CT_HOADON ON HOADON.SoHD = CT_HOADON.SoHD
+JOIN NGK ON CT_HOADON.MaNGK = NGK.MaNGK
+WHERE KH.DCKH LIKE '%TP.HCM%' 
+    AND YEAR(HOADON.NgaylapHD) = 2010
+    AND MONTH(HOADON.NgaylapHD) = 9
+GROUP BY KH.MaKH, KH.TenKH, KH.DCKH;
+
 --28) Đưa ra số lượng đã bán tương ứng của từng NGK trong tháng 10 năm 2010.
+
+SELECT NGK.MaNGK, NGK.TenNGK, SUM(CT_HOADON.SLKHMua) AS SoLuongDaBan
+FROM NGK
+JOIN CT_HOADON ON NGK.MaNGK = CT_HOADON.MaNGK
+JOIN HOADON ON CT_HOADON.SoHD = HOADON.SoHD
+WHERE YEAR(HOADON.NgaylapHD) = 2010
+    AND MONTH(HOADON.NgaylapHD) = 10
+GROUP BY NGK.MaNGK, NGK.TenNGK
+ORDER BY SoLuongDaBan DESC;
+
 --29) Hiển thị thông tin khách hàng đã từng mua và tổng số lượng của từng NGK tại cửa hàng.
+
+SELECT
+    KH.MaKH,
+    KH.TenKH,
+    NGK.MaNGK,
+    NGK.TenNGK,
+    SUM(CT_HOADON.SLKHMua) AS TongSoLuongMua
+FROM
+    KH
+JOIN HOADON ON KH.MaKH = HOADON.MaKH
+JOIN CT_HOADON ON HOADON.SoHD = CT_HOADON.SoHD
+JOIN NGK ON CT_HOADON.MaNGK = NGK.MaNGK
+GROUP BY
+    KH.MaKH,
+    KH.TenKH,
+    NGK.MaNGK,
+    NGK.TenNGK
+ORDER BY
+    KH.MaKH,
+    NGK.MaNGK;
+
 --30) Cho biết trong năm 2010, khách hàng nào đã mua nợ nhiều nhất.
+
+SELECT top 1 KH.MaKH, KH.TenKH, SUM(PHIEUTRANNO.SoTienTra) AS "Tổng Nợ"
+FROM KH
+JOIN HOADON ON KH.MaKH = HOADON.MaKH
+JOIN PHIEUTRANNO ON HOADON.SoHD = PHIEUTRANNO.SoHD
+WHERE YEAR(PHIEUTRANNO.NgayTra) = 2010
+GROUP BY KH.MaKH,KH.TenKH
+ORDER BY [Tổng Nợ] DESC;
+
 --31) Có bao nhiêu hóa đơn chưa thanh toán hết số tiền?
+
+SELECT COUNT(DISTINCT HOADON.SoHD) AS "Số lượng hóa đơn chưa thanh toán"
+FROM HOADON
+LEFT JOIN PHIEUTRANNO ON HOADON.SoHD = PHIEUTRANNO.SoHD
+WHERE PHIEUTRANNO.SoPTN IS NULL;
+
 --32) Liệt kê các hóa đơn cùng tên của khách hàng tương ứng đã mua NGK và thanh toán tiền đầy đủ 1 lần. (Không có phiếu trả nợ)
+
+SELECT KH.MaKH, KH.TenKH, HOADON.SoHD, HOADON.NgaylapHD
+FROM KH
+JOIN HOADON ON KH.MaKH = HOADON.MaKH
+JOIN CT_HOADON ON HOADON.SoHD = CT_HOADON.SoHD
+LEFT JOIN PHIEUTRANNO ON HOADON.SoHD = PHIEUTRANNO.SoHD
+WHERE PHIEUTRANNO.SoPTN IS NULL
+GROUP BY KH.MaKH, KH.TenKH, HOADON.SoHD, HOADON.NgaylapHD   
+HAVING COUNT(DISTINCT CT_HOADON.MaNGK) > 0 AND COUNT(DISTINCT PHIEUTRANNO.SoPTN) = 0;
+
 --33) Thông kê cho biết thông tin đặt hàng của cửa hàng trong năm 2010: Mã NGK, Tên NGK, Tổng SL đặt.
---34) Để thuận tiện trong việc tặng quà Tết cho khách hàng, hãy liệt kê danh sách khách hàng đã mua NGK với tổng số tiền tương ứng trong năm 2010 (hiển thị giảm dần theo số tiền đã mua)
+
+SELECT NGK.MaNGK, NGK.TenNGK, SUM(CT_DDH.SLDat) AS "Tổng số lượng đặt"
+FROM NGK
+JOIN CT_DDH ON NGK.MaNGK = CT_DDH.MaNGK
+JOIN DDH ON CT_DDH.SoDDH = DDH.SoDDH
+WHERE YEAR(DDH.NgayDH) = 2010
+GROUP BY NGK.MaNGK, NGK.TenNGK;
+
+--34) Để thuận tiện trong việc tặng quà Tết cho khách hàng, 
+--hãy liệt kê danh sách khách hàng đã mua NGK với tổng số tiền tương ứng trong năm 2010 (hiển thị giảm dần theo số tiền đã mua)
+
+SELECT KH.MaKH, KH.TenKH, SUM(CT_HOADON.SLKHMua * CAST(CT_HOADON.DGBan AS DECIMAL(10, 2))) AS "Tổng tiền mua"
+FROM KH
+JOIN HOADON ON KH.MaKH = HOADON.MaKH
+JOIN CT_HOADON ON HOADON.SoHD = CT_HOADON.SoHD
+JOIN NGK ON CT_HOADON.MaNGK = NGK.MaNGK
+WHERE YEAR(HOADON.NgaylapHD) = 2010
+GROUP BY KH.MaKH, KH.TenKH
+ORDER BY [Tổng tiền mua] DESC;
 
 --View
 --1. Tạo View V_NGK tổng hợp dữ liệu về từng NGK đã được bán. Cấu trúc View gồm các thuộc tính:
