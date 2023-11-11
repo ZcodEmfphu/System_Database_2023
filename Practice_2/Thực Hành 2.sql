@@ -455,25 +455,13 @@ ORDER BY SoLuongDaBan DESC;
 
 --29) Hiển thị thông tin khách hàng đã từng mua và tổng số lượng của từng NGK tại cửa hàng.
 
-SELECT
-    KH.MaKH,
-    KH.TenKH,
-    NGK.MaNGK,
-    NGK.TenNGK,
-    SUM(CT_HOADON.SLKHMua) AS TongSoLuongMua
-FROM
-    KH
+SELECT KH.MaKH, KH.TenKH, NGK.MaNGK, NGK.TenNGK, SUM(CT_HOADON.SLKHMua) AS TongSoLuongMua
+FROM KH
 JOIN HOADON ON KH.MaKH = HOADON.MaKH
 JOIN CT_HOADON ON HOADON.SoHD = CT_HOADON.SoHD
 JOIN NGK ON CT_HOADON.MaNGK = NGK.MaNGK
-GROUP BY
-    KH.MaKH,
-    KH.TenKH,
-    NGK.MaNGK,
-    NGK.TenNGK
-ORDER BY
-    KH.MaKH,
-    NGK.MaNGK;
+GROUP BY KH.MaKH, KH.TenKH, NGK.MaNGK, NGK.TenNGK
+ORDER BY KH.MaKH, NGK.MaNGK;
 
 --30) Cho biết trong năm 2010, khách hàng nào đã mua nợ nhiều nhất.
 
@@ -527,9 +515,8 @@ ORDER BY [Tổng tiền mua] DESC;
 --View
 --1. Tạo View V_NGK tổng hợp dữ liệu về từng NGK đã được bán. Cấu trúc View gồm các thuộc tính:
 --MaNGK, TenNGK, Quycach, SoLuongBan,Tổng tiền = SoLuongBan * Đơn giá bán
-
-create view V_NGK
-as  
+go
+create view V_NGK as  
 select NGK.MaNGK ,TenNGK, Quycach , sum (SLKHMua * DGBan) as "Tong Tien"
 from NGK, CT_HOADON
 where NGK.MaNGK = CT_HOADON.MaNGK 
@@ -538,43 +525,48 @@ group by TenNGK, QuyCach, NGK.MaNGK;
 --2. Tạo View V_khachang tổng hợp dữ liệu về 10 khách hàng lớn. Danh sách gồm MaKH, TenKH,
 --DTKH, Tổng tiền= SoLuongBan*Đơn giá bán
 go
-create view V_khachhang
-as
+create view V_khachhang as
 select HOADON.MaKH, TenKH, DTKH , sum(SLKHMua * DGBan) as "Tong Tien"
 from HOADON, CT_HOADON, KH
 where HOADON.SoHD = CT_HOADON.SoHD and HOADON.MaKH = KH.MaKH
-group by HOADON.MaKH, TenKH, DTKH
+group by HOADON.MaKH, TenKH, DTKH;
 
 --3. Tạo view V_TRANO cho biết danh sách khách hàng đã thu hơn 2 lần nhưng chưa trả hết tiền. Danh
 --sách gồm: MaKH, TenKH, DTKH, tổng tiền phải trả, tổng tiền đã trả, số lần thu tiền
-
-create view v_tongtrano
-as
+go
+create view v_tongtrano as
 select KH.MaKH, PhieuTraNNO.SoHD, sum(SoTienTra) as "Tong Tien Tra", count(PhieuTraNNo.SoHD) as "So lan Tra"
 from PHIEUTRANNO, KH , HOADON
 where PHIEUTRANNO.SoHD = HOADON.SoHD and KH.MaKH = HOADON.MaKH
 group by KH.MaKH,PhieuTraNNO.SoHD
-having  count(PhieuTraNNO.SoHD) > 1
+having  count(PhieuTraNNO.SoHD) > 1;
 
-create view v_tongtien
-as
+go
+create view v_tongtien as
 select HoaDon.MaKH, sum(SLKHMua * DGBan) as "Tong Tien Phai Tra"
 from HOADON, CT_HOADON, KH
 where HOADON.SoHD = CT_HOADON.SoHD and KH.MaKH = HOADON.MaKH
-group by  HoaDon.MaKH
+group by  HoaDon.MaKH;
 
-create view V_TraNo
-as
+go
+create view V_TraNo as
 select KH.MaKH, KH.TenKH, KH.DTKH, [Tong Tien Phai Tra], [Tong tien tra], [So lan Tra]
 from v_tongtrano, v_tongtien , KH
-where v_tongtrano.MaKH = v_tongtien.MaKH and KH.MaKH =  v_tongtien.MaKH 
+where v_tongtrano.MaKH = v_tongtien.MaKH and KH.MaKH =  v_tongtien.MaKH; 
 
-select * from V_TraNo
 --4. Tạo view V_ngk_ton hiển thị thông tin nước giải khát chưa bán được
+go
+CREATE VIEW V_ngk_ton 
+AS
+SELECT NGK.MaNGK, NGK.TenNGK, NGK.QuyCach, NGK.MaLoaiNGK
+FROM NGK
+LEFT JOIN CT_HOADON ON NGK.MaNGK = CT_HOADON.MaNGK
+WHERE CT_HOADON.MaNGK IS NULL;
+
 
 --Procedure
 --1. Tạo thủ tục sp _ngk liệt kê tất cả nước giải khát và loại nước giải khát tương ứng
-
+go
 create procedure sp_ngk 
 as 
 Select distinct TenNGK,TenLoaiNGK 
@@ -584,7 +576,7 @@ where NGK.MaLoaiNGK = LoaiNGK.MaLoaiNGK;
 EXEC sp_ngk;
 
 --2. Tạo thủ tục sp_ncc cho biết thông tin về nhà cung cấp với mã nhà cung cấp là tham số đầu vào
-
+go
 CREATE PROCEDURE sp_ncc
     @MaNCC Varchar(255)
 AS
@@ -596,7 +588,7 @@ END;
 EXEC sp_ncc @MaNCC = 'NC1';
 
 --3. Tạo thủ tục sp_ton hiển thị thông tin nước giải khát chưa bán được
-
+go
 create procedure sp_ton
 as
 begin
@@ -622,16 +614,135 @@ END;
 EXEC sp_dt @Nam = 2010
 
 --5. Tạo thủ tục sp_tong_dt tinh tổng doanh thu của năm (với năm là tham số đầu vào và doanh thu là tham số đầu ra)
+go
+CREATE PROCEDURE sp_tong_dt
+    @Nam INT,
+    @DoanhThu int OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT @DoanhThu = COALESCE(SUM(CT_HOADON.SLKHMua * CAST(CT_HOADON.DGBan AS DECIMAL(10, 2))), 0)
+    FROM HOADON
+    JOIN CT_HOADON ON HOADON.SoHD = CT_HOADON.SoHD
+    WHERE YEAR(HOADON.NgaylapHD) = 2010;
+END;
+go
+DECLARE @Nam INT = 2023;
+DECLARE @DoanhThu INT;
+EXEC sp_tong_dt @Nam, @DoanhThu OUTPUT;
+SELECT @DoanhThu AS 'TongDoanhThu';
+
 --6. Tạo thủ tục sp_danhsach liệt kê n loại nước giải khát bán chạy nhất (doanh thu) trong tháng (với n và tháng là tham số đầu vào)
---7. Tạo thủ tục sp_insert_CTPGH nhận vào các tham số tương ứng với thông tin của một dòng trong chi
---tiết phiếu giao hàng, nếu các điều kiện sau đây được thỏa mãn thì thêm dòng mới tương ứng với các thông tin đã cho vào Table CT_PGH:
+go
+CREATE PROCEDURE sp_danhsach
+    @Thang INT,
+    @N INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT TOP (@N)
+        NGK.MaNGK,
+        NGK.TenNGK,
+        SUM(CT_HOADON.SLKHMua) AS TongSoLuong,
+        SUM(CT_HOADON.SLKHMua * CAST(CT_HOADON.DGBan AS DECIMAL(10, 2))) AS DoanhThu
+    FROM NGK
+    JOIN CT_HOADON ON NGK.MaNGK = CT_HOADON.MaNGK
+    JOIN HOADON ON CT_HOADON.SoHD = HOADON.SoHD
+    WHERE MONTH(HOADON.NgaylapHD) = @Thang
+    GROUP BY NGK.MaNGK, NGK.TenNGK
+    ORDER BY DoanhThu DESC;
+END;
+
+DECLARE @ThangTest INT = 6;
+DECLARE @NTest INT = 5;
+EXEC sp_danhsach @Thang = @ThangTest, @N = @NTest;
+
+--7. Tạo thủ tục sp_insert_CTPGH nhận vào các tham số tương ứng với thông tin của một dòng trong chi tiết phiếu giao hàng, 
+--nếu các điều kiện sau đây được thỏa mãn thì thêm dòng mới tương ứng với các thông tin đã cho vào Table CT_PGH:
 -- SoPGH phải tồn tại trong table PGH
 -- MaNGK ứng với SoDDH phải tồn tại trong table CT_DDH SLGiao<=SLDAT
---Thông báo nếu điều kiện trên bị vi phạm
---8. Tạo thủ tục có tên sp_delete_CTPH nhận vào các tham số tương ứng với thông tin của một dòng trong
---chi tiết phiếu hẹn, thực hiện các yêu cầu sau:7
+-- Thông báo nếu điều kiện trên bị vi phạm
+go
+CREATE PROCEDURE sp_insert_CTPGH
+    @SoPGH VARCHAR(20),
+    @MaNGK VARCHAR(20),
+    @SLGiao INT,
+    @DGGiao VARCHAR(20)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Kiểm tra xem SoPGH tồn tại trong bảng PGH
+    IF NOT EXISTS (SELECT 1 FROM PHIEUGH WHERE SoPGH = @SoPGH)
+    BEGIN
+        PRINT 'Lỗi: SoPGH không tồn tại trong bảng PGH.';
+        RETURN; -- Thoát khỏi thủ tục nếu điều kiện không được thỏa mãn
+    END;
+    -- Kiểm tra xem MaNGK tồn tại trong bảng CT_DDH và SLGiao <= SLDat
+    IF NOT EXISTS (
+        SELECT 1
+        FROM CT_DDH
+        WHERE SoDDH = (SELECT SoDDH FROM PHIEUGH WHERE SoPGH = @SoPGH)
+          AND MaNGK = @MaNGK
+          AND @SLGiao <= SLDat
+    )
+    BEGIN
+        PRINT 'Lỗi: MaNGK không tồn tại trong bảng CT_DDH hoặc SLGiao lớn hơn SLDat.';
+        RETURN; -- Thoát khỏi thủ tục nếu điều kiện không được thỏa mãn
+    END;
+    -- Thêm dòng mới vào bảng CT_PGH nếu các điều kiện đều được thỏa mãn
+    INSERT INTO CT_PGH (SoPGH, MaNGK, SLGiao, DGGiao)
+    VALUES (@SoPGH, @MaNGK, @SLGiao, @DGGiao);
+    PRINT 'Thêm dòng mới vào bảng CT_PGH thành công.';
+END;
+
+DECLARE @SoPGHTest VARCHAR(20) = 'PGH001';
+DECLARE @MaNGKTest VARCHAR(20) = 'NGK001';
+DECLARE @SLGiaoTest INT = 10;
+DECLARE @DGGiaoTest VARCHAR(20) = '100000';
+
+-- Gọi thủ tục với giá trị thí nghiệm
+EXEC sp_insert_CTPGH
+    @SoPGH = @SoPGHTest,
+    @MaNGK = @MaNGKTest,
+    @SLGiao = @SLGiaoTest,
+    @DGGiao = @DGGiaoTest;
+
+--8. Tạo thủ tục có tên sp_delete_CTPH nhận vào các tham số tương ứng với thông tin của một dòng trong chi tiết phiếu hẹn, thực hiện các yêu cầu sau:
 -- Xóa dòng trương ứng trong chi tiết phiếu hẹn
 -- Nếu phiếu hẹn tương ứng không còn dòng chi tiết thì xóa luôn phiếu hẹn đó
+go
+CREATE PROCEDURE sp_delete_CTPH
+    @SoPH VARCHAR(20),
+    @MaNGK VARCHAR(20)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Kiểm tra xem phiếu hẹn tồn tại
+    IF NOT EXISTS (SELECT 1 FROM PHIEUHEN WHERE SoPH = @SoPH)
+    BEGIN
+        PRINT 'Lỗi: Phiếu hẹn không tồn tại.';
+        RETURN; -- Thoát khỏi thủ tục nếu phiếu hẹn không tồn tại
+    END;
+    -- Xóa dòng tương ứng trong chi tiết phiếu hẹn
+    DELETE FROM CT_PH WHERE SoPH = @SoPH AND MaNGK = @MaNGK;
+    -- Kiểm tra xem phiếu hẹn tương ứng còn dòng chi tiết không
+    IF NOT EXISTS (SELECT 1 FROM CT_PH WHERE SoPH = @SoPH)
+    BEGIN
+        -- Nếu không còn dòng chi tiết, xóa luôn phiếu hẹn
+        DELETE FROM PHIEUHEN WHERE SoPH = @SoPH;
+        PRINT 'Đã xóa phiếu hẹn và chi tiết phiếu hẹn.';
+    END
+    ELSE
+    BEGIN
+        PRINT 'Đã xóa chi tiết phiếu hẹn.';
+    END;
+END;
+
+DECLARE @SoPHTest VARCHAR(20) = 'PH001';
+DECLARE @MaNGKTest VARCHAR(20) = 'NGK001';
+EXEC sp_delete_CTPH
+    @SoPH = @SoPHTest,
+    @MaNGK = @MaNGKTest;
 
 --Function
 --1. Tạo hàm f_list có 2 tham số là @Ngay1 và @Ngay2 cho biết danh sách các NGK đã được bán trong khoảng thời gian trên. Danh sách gồm các thuộc tính: MaNGK, TenNGK, DVT, SoLuong.
